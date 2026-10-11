@@ -1,0 +1,6 @@
+# Isolates the effect of embedding threads per invocation at a single Lambda.
+base: a_scifact.yaml
+grid:
+  ingest.concurrency: [1]
+  embedding.workers_per_invocation: [1, 2, 4, 8]
+repetitions: 3

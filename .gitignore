@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.data/
+infra/cdk.out/
+infra/cdk.out.destroy.json
+cdk.context.json
+results/raw/
+*.parquet
+.DS_Store

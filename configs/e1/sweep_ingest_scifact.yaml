@@ -1,0 +1,5 @@
+# Ingestion scaling for variant A. Lambda concurrency is the swept variable; threads stay at 8.
+base: a_scifact.yaml
+grid:
+  ingest.concurrency: [1, 2, 4, 8, 16, 32]
+repetitions: 3

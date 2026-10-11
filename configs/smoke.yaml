@@ -1,0 +1,15 @@
+# Smallest end-to-end run: 50 SciFact docs, 20 queries. Use before any sweep.
+experiment_id: SMOKE
+dataset:
+  name: scifact
+  corpus_uri: s3://${DATASETS_BUCKET}/beir/scifact/corpus.jsonl
+  queries_uri: s3://${DATASETS_BUCKET}/beir/scifact/queries.jsonl
+  qrels_uri: s3://${DATASETS_BUCKET}/beir/scifact/qrels/test.tsv
+  doc_limit: 50
+  sha256: "TO_PIN"
+query:
+  concurrency: 2
+  requests: 20
+  warmup_requests: 2
+budget_cap_usd: 1.0
+notes: "smoke test"

@@ -1,0 +1,9 @@
+# Variant A baseline: S3 Vectors + Titan V2 + Nova Lite v1 (in-region), BEIR nfcorpus.
+experiment_id: E1
+dataset:
+  name: nfcorpus
+  corpus_uri: s3://${DATASETS_BUCKET}/beir/nfcorpus/corpus.jsonl
+  queries_uri: s3://${DATASETS_BUCKET}/beir/nfcorpus/queries.jsonl
+  qrels_uri: s3://${DATASETS_BUCKET}/beir/nfcorpus/qrels/test.tsv
+  sha256: "TO_PIN"   # written by: rag prep-beir nfcorpus
+notes: "variant A baseline"
