@@ -2,7 +2,7 @@
 name = "rag-thesis"
 version = "0.1.0"
 description = "Serverless RAG pipelines on AWS: performance and cost experiments (UW Tacoma MS thesis)"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
   "boto3>=1.40",
   "pydantic>=2.7",
