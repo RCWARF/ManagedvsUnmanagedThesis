@@ -9,3 +9,4 @@ cdk.context.json
 results/raw/
 *.parquet
 .DS_Store
+*.egg-info/

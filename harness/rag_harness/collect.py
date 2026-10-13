@@ -20,8 +20,11 @@ REPORT_RE = re.compile(
 def _events(group: str, start_ms: int, pattern: str):
     logs = client("logs")
     kw = dict(logGroupName=group, startTime=start_ms, filterPattern=pattern)
-    for page in logs.get_paginator("filter_log_events").paginate(**kw):
-        yield from page.get("events", [])
+    try:
+        for page in logs.get_paginator("filter_log_events").paginate(**kw):
+            yield from page.get("events", [])
+    except logs.exceptions.ResourceNotFoundException:
+        return  # function never invoked, so its log group was never created
 
 
 def _metrics(fn: str, start: datetime, end: datetime) -> list[dict]:
@@ -63,8 +66,9 @@ def run(run_id: str) -> dict:
     start_ms = int(start.timestamp() * 1000)
     end = datetime.now(timezone.utc) + timedelta(minutes=1)
     counts = {}
-    for role in ("enqueue", "embed", "query"):
-        group = f"/rag-thesis/{run_id}/{role}"
+    fns = {"enqueue": m["outputs"]["EnqueueFn"], "embed": m["outputs"]["EmbedFn"], "query": m["outputs"]["QueryFn"]}
+    for role, fn_name in fns.items():
+        group = f"/aws/lambda/{fn_name}"
         saaf, reports = [], []
         for ev in _events(group, start_ms, '"rag_metric"'):
             try:

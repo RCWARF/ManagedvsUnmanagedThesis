@@ -12,7 +12,6 @@ from aws_cdk import aws_ec2 as ec2
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_lambda_event_sources as les
-from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_notifications as s3n
 from aws_cdk import aws_s3vectors as s3v
@@ -115,12 +114,8 @@ class VariantAStack(Stack):
                        vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_ISOLATED))
 
         def fn(name: str, handler: str, spec, **extra) -> lambda_.Function:
-            log_group = logs.LogGroup(
-                self, f"{name}Logs",
-                log_group_name=f"/rag-thesis/{slug}/{name.lower()}",
-                retention=logs.RetentionDays.THREE_MONTHS,
-                removal_policy=RemovalPolicy.RETAIN,  # raw data outlives the stack
-            )
+            # Default log group (/aws/lambda/<function>): created on first invoke, never deleted
+            # with the stack, so raw data outlives the run and a redeploy cannot collide with it.
             return lambda_.Function(
                 self, name,
                 runtime=RUNTIMES[spec.runtime],
@@ -130,7 +125,6 @@ class VariantAStack(Stack):
                 memory_size=spec.memory_mb,
                 timeout=Duration.seconds(spec.timeout_s),
                 environment=env,
-                log_group=log_group,
                 logging_format=lambda_.LoggingFormat.TEXT,
                 **net,
                 **extra,
@@ -144,11 +138,12 @@ class VariantAStack(Stack):
         queue.grant_send_messages(enqueue)
         ingest_bucket.grant_read(embed)
         ingest_bucket.add_event_notification(s3.EventType.OBJECT_CREATED, s3n.LambdaDestination(enqueue))
-        # Concurrency cap: reserved concurrency = c for every level (one mechanism throughout).
-        # The ESM cap cannot go below 2, so at c=1 the poller may be throttled; collect records it.
+        # Concurrency cap: reserved concurrency = c at every level. The ESM cap must be >= 2 and
+        # <= reserved concurrency, so it matches c when c >= 2 and is left unset at c = 1
+        # (the poller may then be throttled at c = 1; collect records Lambda Throttles).
         embed.add_event_source(les.SqsEventSource(
             queue, batch_size=cfg.ingest.esm_batch_size, report_batch_item_failures=True,
-            max_concurrency=max(2, cfg.ingest.concurrency)))
+            max_concurrency=cfg.ingest.concurrency if cfg.ingest.concurrency >= 2 else None))
 
         s3v_write = iam.PolicyStatement(actions=["s3vectors:PutVectors", "s3vectors:GetVectors"],
                                         resources=[vindex.attr_index_arn])
