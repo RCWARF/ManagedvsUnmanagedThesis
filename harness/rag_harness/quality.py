@@ -31,11 +31,18 @@ def run(run_id: str, top_k: int = 100, workers: int = 8) -> dict:
                                  topK=top_k, queryVector={"float32": emb}, returnMetadata=True)
         return qid, dedupe_ranking([(v.get("metadata") or {}).get("doc_id", "") for v in resp["vectors"]])
 
+    limit = cfg["dataset"].get("doc_limit")
+    if limit is not None:
+        # Only part of the corpus was ingested: score against judgments on ingested docs only,
+        # otherwise every query whose relevant doc was never ingested counts as a miss.
+        ingested = {str(doc["_id"]) for doc in beir.iter_corpus(d / "corpus.jsonl", limit)}
+        qrels = {q: kept for q, rel in qrels.items()
+                 if (kept := {doc: s for doc, s in rel.items() if doc in ingested})}
     qids = [q for q in qrels if q in queries]
     with ThreadPoolExecutor(max_workers=workers) as pool:
         ranking = dict(pool.map(one, qids))
     (RAW / run_id).mkdir(parents=True, exist_ok=True)
     (RAW / run_id / "retrieval_run.json").write_text(json.dumps(ranking))
-    metrics = evaluate(ranking, qrels)
+    metrics = evaluate(ranking, qrels) | {"corpus_subset": limit is not None}
     manifest.update(run_id, retrieval_quality=metrics)
     return metrics
