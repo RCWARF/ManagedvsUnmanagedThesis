@@ -26,11 +26,16 @@ def expected_chunks(cfg: RunConfig, docs: list[dict]) -> int:
     return sum(len(chunk_text(_doc_text(d), cfg.chunking.size, cfg.chunking.overlap)) for d in docs)
 
 
-def count_vectors(bucket: str, index: str) -> int:
+def index_arn(out: dict) -> str:
+    """Stacks deployed before IndexArn was an output expose the bucket ARN + index name."""
+    return out.get("IndexArn") or f"{out['VectorBucket']}/index/{out['VectorIndex']}"
+
+
+def count_vectors(arn: str) -> int:
     s3v = client("s3vectors")
     n, token = 0, None
     while True:
-        kw = dict(vectorBucketName=bucket, indexName=index, maxResults=1000)
+        kw = dict(indexArn=arn, maxResults=1000)
         if token:
             kw["nextToken"] = token
         resp = s3v.list_vectors(**kw)
@@ -82,7 +87,7 @@ def run(run_id: str) -> dict:
 
     result = {"dlq_messages": _queue_depth(sqs, out["DlqUrl"])}
     if cfg.ingest.verify_completeness:
-        stored = count_vectors(out["VectorBucket"], out["VectorIndex"])
+        stored = count_vectors(index_arn(out))
         result |= {"vectors_stored": stored, "vectors_expected": n_expected,
                    "completeness": round(stored / n_expected, 6) if n_expected else None}
     manifest.update(run_id, ingest_result=result, ingest_status="done")

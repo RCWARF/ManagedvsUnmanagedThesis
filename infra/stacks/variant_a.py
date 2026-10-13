@@ -98,7 +98,7 @@ class VariantAStack(Stack):
             "EMBED_WORKERS": str(cfg.embedding.workers_per_invocation),
             "EMBED_MAX_RETRIES": str(cfg.embedding.max_retries),
             "CHUNK_SIZE": str(cfg.chunking.size), "CHUNK_OVERLAP": str(cfg.chunking.overlap),
-            "VECTOR_STORE": "s3v", "VECTOR_BUCKET": vbucket.ref, "VECTOR_INDEX": index_name,
+            "VECTOR_STORE": "s3v", "VECTOR_INDEX_ARN": vindex.attr_index_arn,
             "PUT_BATCH_SIZE": str(cfg.vector_store.put_batch_size),
             "GEN_MODEL": gen_model, "GEN_TEMPERATURE": str(cfg.generation.temperature),
             "GEN_MAX_TOKENS": str(cfg.generation.max_tokens), "GEN_TOP_K": str(cfg.generation.top_k),
@@ -164,8 +164,8 @@ class VariantAStack(Stack):
 
         for name, value in {
             "RunId": slug, "ConfigHash": cfg.config_hash(), "IngestBucket": ingest_bucket.bucket_name,
-            "QueueUrl": queue.queue_url, "DlqUrl": dlq.queue_url, "VectorBucket": vbucket.ref,
-            "VectorIndex": index_name, "EnqueueFn": enqueue.function_name, "EmbedFn": embed.function_name,
+            "QueueUrl": queue.queue_url, "DlqUrl": dlq.queue_url, "VectorBucket": vbucket.attr_vector_bucket_arn,
+            "VectorIndex": index_name, "IndexArn": vindex.attr_index_arn, "EnqueueFn": enqueue.function_name, "EmbedFn": embed.function_name,
             "QueryFn": query.function_name, "EmbedModel": embed_model, "GenModel": gen_model,
         }.items():
             CfnOutput(self, f"Out{name}", value=value)

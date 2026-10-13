@@ -25,8 +25,7 @@ class Settings:
     chunk_overlap: int
     # vector store
     vector_store: str
-    vector_bucket: str
-    vector_index: str
+    vector_index_arn: str  # arn:aws:s3vectors:<region>:<acct>:bucket/<name>/index/<name>
     put_batch_size: int
     # generation
     gen_model: str
@@ -54,8 +53,7 @@ class Settings:
             chunk_size=int(e("CHUNK_SIZE", "1000")),
             chunk_overlap=int(e("CHUNK_OVERLAP", "200")),
             vector_store=e("VECTOR_STORE", "s3v"),
-            vector_bucket=e("VECTOR_BUCKET", ""),
-            vector_index=e("VECTOR_INDEX", ""),
+            vector_index_arn=e("VECTOR_INDEX_ARN", ""),
             put_batch_size=int(e("PUT_BATCH_SIZE", "32")),
             gen_model=e("GEN_MODEL", "amazon.nova-lite-v1:0"),
             gen_temperature=float(e("GEN_TEMPERATURE", "0")),

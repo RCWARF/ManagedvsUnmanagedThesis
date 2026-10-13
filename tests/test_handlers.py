@@ -102,3 +102,33 @@ def test_query_handler_raises_on_failure(monkeypatch):
     import query_handler
     with pytest.raises(ValueError):
         query_handler.lambda_handler({"question": ""}, None)
+
+
+def test_s3v_store_requests_pass_botocore_validation(monkeypatch):
+    """The store must send an index ARN botocore accepts (a bucket ARN is not a bucket name)."""
+    import boto3
+    from botocore.stub import Stubber
+
+    from rag.stores import s3v as s3v_mod
+    from rag.stores.base import Chunk
+
+    arn = "arn:aws:s3vectors:us-west-2:123456789012:bucket/raga-smoke-vectorbucket-abc/index/idx-1024"
+    real = boto3.client("s3vectors", region_name="us-west-2",
+                        aws_access_key_id="x", aws_secret_access_key="x")
+    stub = Stubber(real)
+    stub.add_response("put_vectors", {}, {"indexArn": arn, "vectors": stub_any()})
+    stub.add_response("query_vectors", {"vectors": [{"key": "d1#00000", "distance": 0.1,
+                                                     "metadata": {"doc_id": "d1", "content": "c"}}],
+                                        "distanceMetric": "cosine"}, None)
+    monkeypatch.setattr(s3v_mod, "s3vectors", real)
+    store = s3v_mod.S3VectorsStore(index_arn=arn)
+    with stub:
+        store.put([Chunk(key="d1#00000", embedding=[0.1] * 4, doc_id="d1", chunk_index=0,
+                         content="c", source_key="scifact/d1.json")])
+        hits = store.search([0.1] * 4, 5)
+    assert hits[0].doc_id == "d1"
+
+
+def stub_any():
+    from botocore.stub import ANY
+    return ANY

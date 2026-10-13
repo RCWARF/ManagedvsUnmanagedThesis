@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from . import beir, manifest
 from .aws import client
+from .ingest import index_arn
 from .paths import RAW, ROOT
 
 sys.path.insert(0, str(ROOT))
@@ -26,7 +27,7 @@ def run(run_id: str, top_k: int = 100, workers: int = 8) -> dict:
         body = json.dumps({"inputText": queries[qid], "dimensions": cfg["embedding"]["dimensions"],
                            "normalize": cfg["embedding"]["normalize"]})
         emb = json.loads(br.invoke_model(modelId=out["EmbedModel"], body=body)["body"].read())["embedding"]
-        resp = s3v.query_vectors(vectorBucketName=out["VectorBucket"], indexName=out["VectorIndex"],
+        resp = s3v.query_vectors(indexArn=index_arn(out),
                                  topK=top_k, queryVector={"float32": emb}, returnMetadata=True)
         return qid, dedupe_ranking([(v.get("metadata") or {}).get("doc_id", "") for v in resp["vectors"]])
 

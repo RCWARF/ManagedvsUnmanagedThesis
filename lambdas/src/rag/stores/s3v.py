@@ -8,15 +8,13 @@ from .base import Chunk, Hit
 class S3VectorsStore:
     score_kind = "distance"
 
-    def __init__(self, bucket: str | None = None, index: str | None = None):
-        self.bucket = bucket or SETTINGS.vector_bucket
-        self.index = index or SETTINGS.vector_index
+    def __init__(self, index_arn: str | None = None):
+        self.index_arn = index_arn or SETTINGS.vector_index_arn
 
     def put(self, chunks: list[Chunk]) -> None:
         now = int(time.time())
         s3vectors.put_vectors(
-            vectorBucketName=self.bucket,
-            indexName=self.index,
+            indexArn=self.index_arn,
             vectors=[
                 {
                     "key": c.key,
@@ -38,8 +36,7 @@ class S3VectorsStore:
 
     def search(self, embedding: list[float], top_k: int) -> list[Hit]:
         resp = s3vectors.query_vectors(
-            vectorBucketName=self.bucket,
-            indexName=self.index,
+            indexArn=self.index_arn,
             topK=top_k,
             queryVector={"float32": embedding},
             returnMetadata=True,
