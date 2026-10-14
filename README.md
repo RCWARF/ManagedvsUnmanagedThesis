@@ -17,6 +17,7 @@ Runs that share Lambda specs, network and model ids share one `RagA-<infra key>`
 | `harness/rag_harness/` | `rag` CLI: deploy → ingest → query → quality → collect → cost → destroy |
 | `eval/` | IR metrics (nDCG@10, Recall@k, MRR@10) |
 | `results/manifests/` | One JSON manifest per run (committed) |
+| `results/rag_results.xlsx` | Excel workbook of every run (`rag export`, also rebuilt after each run): Runs summary plus Embed, Queries, Enqueue and Lambda reports detail sheets |
 | `results/raw/` | SAAF records, Lambda REPORT lines, CloudWatch metrics (not committed; sync to the results bucket) |
 | `analysis/` | Scripts that regenerate every thesis figure from `results/` |
 

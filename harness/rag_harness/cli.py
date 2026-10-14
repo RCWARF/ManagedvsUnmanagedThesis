@@ -14,6 +14,7 @@
   rag teardown [STACK]                  start deleting RagA-* stacks; returns without waiting
   rag stacks                            Rag* stacks and their status, incl. deletes in the last 24 h
   rag notify EMAIL                      email me when a Rag* stack delete finishes or fails
+  rag export                            all collected runs -> results/rag_results.xlsx
 """
 import argparse
 import json
@@ -22,7 +23,7 @@ import sys
 
 import yaml
 
-from . import beir, collect, cost, deploy, ingest, manifest, quality, query_load
+from . import beir, collect, cost, deploy, export, ingest, manifest, quality, query_load
 from .aws import client
 from .paths import CONFIGS
 
@@ -71,6 +72,7 @@ def _one_run(cfg, config_path, overrides, skip_query=False):
         print("collect", collect.run(run_id))
         print("cost", cost.estimate(run_id))
         deploy.destroy(run_id)
+        print("export", export.build())  # workbook stays current after every run
     return run_id
 
 
@@ -142,6 +144,7 @@ def main(argv=None):
     s = sub.add_parser("teardown"); s.add_argument("stack", nargs="?")
     s.set_defaults(f=lambda a: deploy.teardown(a.stack))
     s = sub.add_parser("stacks"); s.set_defaults(f=cmd_stacks)
+    s = sub.add_parser("export"); s.set_defaults(f=lambda a: print(f"wrote {export.build()}"))
     s = sub.add_parser("notify"); s.add_argument("email"); s.set_defaults(f=lambda a: deploy.notify(a.email))
     s = sub.add_parser("show"); s.add_argument("run_id")
     s.set_defaults(f=lambda a: print(json.dumps(manifest.load(a.run_id), indent=2)))
