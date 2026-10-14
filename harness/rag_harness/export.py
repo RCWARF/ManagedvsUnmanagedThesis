@@ -79,7 +79,7 @@ QUERY_COLS = [
     ("status", "status", None, "Client view: ok, error or client_error"),
     ("client_rtt_ms", "rtt_ms", "0.0", "Round trip measured by the load generator"),
     ("handler_ms", "handler_ms", "0.0", "Time inside the query Lambda handler"),
-    ("new_container", "newcontainer", "0", "1 = cold start"),
+    ("new_container", "newcontainer", "0", "1 = cold start; 'not recorded' for runs before 2026-10-14"),
     ("embed_ms", "embed_ms", "0.0", "Titan call for the question"),
     ("search_ms", "search_ms", "0.0", "S3 Vectors top-k query"),
     ("ttft_ms", "gen_ttft_ms", "0.0", "Nova time to first token"),
@@ -95,7 +95,7 @@ ENQUEUE_COLS = [
     ("run_id", "run_id", None, "Run"),
     ("t_s", "t_s", "0.000", "Start time in seconds after the run's first enqueue invocation"),
     ("runtime_ms", "runtime", "0", "SAAF wall time"),
-    ("new_container", "newcontainer", "0", "1 = cold start (blank for runs before this was recorded)"),
+    ("new_container", "newcontainer", "0", "1 = cold start; 'not recorded' for runs before 2026-10-14"),
     ("s3_records", "num_s3_records", "0", "S3 events in the invocation"),
     ("messages_sent", "messages_sent", "0", "SQS messages sent"),
     ("messages_failed", "messages_failed", "0", "SQS sends that failed"),
@@ -107,7 +107,8 @@ REPORT_COLS = [
     ("billed_ms", "billed_ms", "0", "Billed duration"),
     ("memory_mb", "memory_mb", "0", "Configured memory"),
     ("max_memory_used_mb", "max_mem_mb", "0", "Peak memory used"),
-    ("init_ms", "init_ms", "0.00", "Init duration; present only on cold starts"),
+    ("cold_start", "cold_start", "0", "1 = this invocation started a new container (its REPORT line has an init duration)"),
+    ("init_ms", "init_ms", "0.00", "Init duration on a cold start; 0 when the container was already warm"),
 ]
 
 
@@ -121,7 +122,9 @@ def _sheet(wb, title: str, cols, rows: list[dict]):
     for i, r in enumerate(rows, 2):
         for j, (_, key, fmt, _) in enumerate(cols, 1):
             v = r.get(key)
-            if fmt and v is not None and not isinstance(v, bool):
+            if fmt and v is not None and not isinstance(v, (bool, str)):
+                v = _num(v)
+            elif fmt and isinstance(v, str) and _num(v) is not None:
                 v = _num(v)
             c = ws.cell(row=i, column=j, value=v)
             c.font = Font(name=FONT)
@@ -146,12 +149,16 @@ def build(out: Path | None = None) -> Path:
         en = sorted(_read(d / "enqueue_saaf.jsonl"), key=lambda r: r.get("startTime", 0))
         q = {r.get("qid"): r for r in _read(d / "query_saaf.jsonl")}
         client = sorted(_read(d / "client_queries.jsonl"), key=lambda r: r["i"])
+        for src in (en, list(q.values())):
+            for r in src:
+                r.setdefault("newcontainer", "not recorded")  # flag added to enqueue/query on 2026-10-14
         for rows, src in ((embed_rows, e), (enq_rows, en)):
             t0 = src[0]["startTime"] if src else 0
             rows += [{**r, "run_id": rid, "t_s": (r["startTime"] - t0) / 1000} for r in src]
         query_rows += [{**q.get(c["qid"], {}), **c, "run_id": rid} for c in client]
         for fn in ("enqueue", "embed", "query"):
-            rep_rows += [{**r, "run_id": rid, "function": fn} for r in _read(d / f"{fn}_reports.jsonl")]
+            rep_rows += [{**r, "run_id": rid, "function": fn, "cold_start": int(bool(r.get("init_ms"))),
+                          "init_ms": r.get("init_ms") or 0} for r in _read(d / f"{fn}_reports.jsonl")]
         warm = [r for r in query_rows if r["run_id"] == rid and not r["warmup"] and r["status"] == "ok"]
         gaps = [b["startTime"] - a["endTime"] for a, b in zip(e, e[1:])]
         runs.append({"m": m, "has_raw": d.exists(),
@@ -273,6 +280,9 @@ def build(out: Path | None = None) -> Path:
         ("Lambda reports: one row per Lambda REPORT log line (billed duration, memory, init on cold starts).", False),
         ("Fields: what every column means.", False),
         ("", False),
+        ("If the Runs sheet shows empty cells, Excel opened the file in Protected View, which does not calculate "
+         "formulas. Click Enable Editing.", False),
+        ("", False),
         (f"Runs included: {len(runs)}. Runs without raw data still appear on Runs, with blanks for the detail columns.", False),
         ("Costs exclude VPC endpoints (about $0.06 per hour while the network is up), CloudWatch Logs and storage.", False),
     ]
@@ -281,6 +291,8 @@ def build(out: Path | None = None) -> Path:
         c.font = Font(name=FONT, bold=bold, size=14 if bold else 10)
     readme.column_dimensions["A"].width = 120
     wb.move_sheet("Runs", offset=-wb.index(wb["Runs"]) + 1)
+    # openpyxl cannot store formula results, so ask Excel to calculate everything on open.
+    wb.calculation.fullCalcOnLoad = True
     out.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out)
     return out
