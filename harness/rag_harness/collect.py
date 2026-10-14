@@ -5,6 +5,7 @@ are installed). Timestamps stay as epoch milliseconds: no spreadsheet round-trip
 """
 import json
 import re
+import time
 from datetime import datetime, timedelta, timezone
 
 from . import manifest
@@ -58,7 +59,40 @@ def _write(path, rows: list[dict]) -> None:
         pass
 
 
-def run(run_id: str) -> dict:
+def _expected(m: dict, out_dir) -> dict:
+    """Minimum record counts a complete collection must reach."""
+    docs = m.get("ingest_expected", {}).get("docs", 0)
+    client_log = out_dir / "client_queries.jsonl"
+    queries = sum(1 for _ in client_log.open()) if client_log.exists() else 0
+    return {"enqueue": ("num_s3_records", docs), "embed": ("docs", docs - m.get("ingest_result", {}).get("dlq_messages", 0)),
+            "query": (None, queries)}
+
+
+def _complete(role: str, saaf: list, reports: list, want: tuple) -> bool:
+    field, n = want
+    got = len(saaf) if field is None else sum(int(r.get(field) or 0) for r in saaf)
+    return got >= n and len(reports) >= len(saaf)
+
+
+def _pull(group: str, run_id: str, start_ms: int) -> tuple[list, list]:
+    saaf, reports = [], []
+    for ev in _events(group, start_ms, '"rag_metric"'):
+        try:
+            rec = json.loads(ev["message"])
+        except ValueError:
+            continue
+        if rec.get("run_id") != run_id:
+            continue
+        rec["log_ts_ms"] = ev["timestamp"]
+        saaf.append(rec)
+    for ev in _events(group, start_ms, '"REPORT RequestId"'):
+        mt = REPORT_RE.search(ev["message"])
+        if mt:
+            reports.append({**{k: v for k, v in mt.groupdict().items()}, "log_ts_ms": ev["timestamp"]})
+    return saaf, reports
+
+
+def run(run_id: str, max_wait_s: int = 300) -> dict:
     m = manifest.load(run_id)
     out_dir = RAW / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -66,31 +100,26 @@ def run(run_id: str) -> dict:
     # REPORT lines and metrics are limited to the window after this run's settings were applied.
     start = datetime.fromisoformat(m["phases"].get("deploy_end") or m["phases"]["deploy_start"])
     start_ms = int(start.timestamp() * 1000)
-    end = datetime.now(timezone.utc) + timedelta(minutes=1)
-    counts = {}
     fns = {"enqueue": m["outputs"]["EnqueueFn"], "embed": m["outputs"]["EmbedFn"], "query": m["outputs"]["QueryFn"]}
-    for role, fn_name in fns.items():
-        group = f"/aws/lambda/{fn_name}"
-        saaf, reports = [], []
-        for ev in _events(group, start_ms, '"rag_metric"'):
-            try:
-                rec = json.loads(ev["message"])
-            except ValueError:
-                continue
-            if rec.get("run_id") != run_id:
-                continue
-            rec["log_ts_ms"] = ev["timestamp"]
-            saaf.append(rec)
-        for ev in _events(group, start_ms, '"REPORT RequestId"'):
-            mt = REPORT_RE.search(ev["message"])
-            if mt:
-                reports.append({**{k: v for k, v in mt.groupdict().items()}, "log_ts_ms": ev["timestamp"]})
+    want = _expected(m, out_dir)
+    # Log events can take a while to become searchable, so poll until every stage has at least
+    # the records the run produced (one per S3 event, per doc, per client request) or time runs out.
+    deadline = time.time() + max_wait_s
+    while True:
+        pulled = {role: _pull(f"/aws/lambda/{fn}", run_id, start_ms) for role, fn in fns.items()}
+        complete = {role: _complete(role, *pulled[role], want[role]) for role in fns}
+        if all(complete.values()) or time.time() > deadline:
+            break
+        time.sleep(15)
+    counts = {}
+    for role, (saaf, reports) in pulled.items():
         _write(out_dir / f"{role}_saaf.jsonl", saaf)
         _write(out_dir / f"{role}_reports.jsonl", reports)
-        counts[role] = {"saaf": len(saaf), "reports": len(reports)}
+        counts[role] = {"saaf": len(saaf), "reports": len(reports), "complete": complete[role]}
+    end = datetime.now(timezone.utc) + timedelta(minutes=1)
     metric_rows = []
-    for role, key in (("enqueue", "EnqueueFn"), ("embed", "EmbedFn"), ("query", "QueryFn")):
-        metric_rows += _metrics(m["outputs"][key], start, end)
+    for fn in fns.values():
+        metric_rows += _metrics(fn, start, end)
     _write(out_dir / "cloudwatch_metrics.jsonl", metric_rows)
     manifest.update(run_id, collected=counts, phases={"collect_end": manifest.now()})
     return counts
