@@ -10,3 +10,4 @@ results/raw/
 *.parquet
 .DS_Store
 *.egg-info/
+results/*.xlsx
