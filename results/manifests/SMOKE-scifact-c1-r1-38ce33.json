@@ -1,0 +1,274 @@
+{
+  "collected": {
+    "embed": {
+      "complete": true,
+      "reports": 50,
+      "saaf": 50
+    },
+    "enqueue": {
+      "complete": true,
+      "reports": 50,
+      "saaf": 50
+    },
+    "query": {
+      "complete": true,
+      "reports": 22,
+      "saaf": 22
+    }
+  },
+  "config": {
+    "budget_cap_usd": 1.0,
+    "chunking": {
+      "overlap": 200,
+      "size": 1000,
+      "strategy": "chars"
+    },
+    "dataset": {
+      "corpus_uri": "s3://ragcommon-datasets0030ee04-pq2kmjtnsokr/beir/scifact/corpus.jsonl",
+      "doc_limit": 50,
+      "name": "scifact",
+      "packing": "one_doc_per_object",
+      "qrels_uri": "s3://ragcommon-datasets0030ee04-pq2kmjtnsokr/beir/scifact/qrels/test.tsv",
+      "queries_uri": "s3://ragcommon-datasets0030ee04-pq2kmjtnsokr/beir/scifact/queries.jsonl",
+      "sha256": "dec31c8182f3d744c7d2c09423756fd1d17cbef75808db13ba01cc0aab4d1ac6",
+      "split": "test"
+    },
+    "embedding": {
+      "dimensions": 1024,
+      "max_retries": 6,
+      "mode": "on_demand",
+      "model_id": "amazon.titan-embed-text-v2:0",
+      "normalize": true,
+      "provider": "bedrock_titan_v2",
+      "use_app_profile": true,
+      "workers_per_invocation": 8
+    },
+    "experiment_id": "SMOKE",
+    "generation": {
+      "allow_cross_region": false,
+      "max_tokens": 256,
+      "model_id": "amazon.nova-lite-v1:0",
+      "prompt_template": "qa_v1",
+      "streaming": true,
+      "temperature": 0.0,
+      "top_k": 5,
+      "use_app_profile": true
+    },
+    "ingest": {
+      "concurrency": 1,
+      "esm_batch_size": 1,
+      "timeout_min": 120,
+      "upload_parallelism": 64,
+      "verify_completeness": true
+    },
+    "lambdas": {
+      "embed": {
+        "arch": "arm64",
+        "memory_mb": 1769,
+        "runtime": "python3.14",
+        "timeout_s": 900
+      },
+      "enqueue": {
+        "arch": "arm64",
+        "memory_mb": 256,
+        "runtime": "python3.14",
+        "timeout_s": 60
+      },
+      "query": {
+        "arch": "arm64",
+        "memory_mb": 1024,
+        "runtime": "python3.14",
+        "timeout_s": 60
+      }
+    },
+    "network": {
+      "in_vpc": true
+    },
+    "notes": "smoke test",
+    "query": {
+      "concurrency": 2,
+      "entrypoint": "direct",
+      "requests": 20,
+      "sampling": "without_replacement",
+      "seed": 42,
+      "warmup_requests": 2
+    },
+    "quotas": {
+      "lambda_account_concurrency": null,
+      "nova_lite_rpm": null,
+      "nova_lite_tpm": null,
+      "titan_rpm": 6000,
+      "titan_tpm": 3072000
+    },
+    "region": "us-west-2",
+    "repetition": 1,
+    "schema_version": "1",
+    "variant_id": "A-s3v-titan-nova",
+    "vector_store": {
+      "distance": "cosine",
+      "kind": "s3vectors",
+      "non_filterable_keys": [
+        "content",
+        "source_key",
+        "ingested_at"
+      ],
+      "put_batch_size": 32
+    }
+  },
+  "config_hash": "38ce33998080",
+  "cost_estimate_usd": {
+    "excluded": "CloudWatch Logs, VPC endpoints (network stack), S3 Vectors storage",
+    "lambda": 0.000654,
+    "nova": 0.0006,
+    "prices": {
+      "lambda_arm_gb_s": 1.33334e-05,
+      "lambda_request": 2e-07,
+      "lambda_x86_gb_s": 1.66667e-05,
+      "nova_lite_in_per_1k": 6e-05,
+      "nova_lite_out_per_1k": 0.00024,
+      "retrieved": "2026-10-11",
+      "s3_put_request": 5e-06,
+      "s3v_put_per_gb": 0.2,
+      "s3v_query_per_request": 2.5e-06,
+      "sqs_fifo_request": 5e-07,
+      "titan_v2_per_1k_tokens": 2e-05
+    },
+    "s3_put": 0.00025,
+    "s3v_put": 0.000115,
+    "s3v_query": 2.8e-05,
+    "sqs": 7.5e-05,
+    "titan": 0.000374,
+    "total": 0.0021
+  },
+  "dlq_depth_before": 0,
+  "esm_deployed": {
+    "BatchSize": 1,
+    "MaximumBatchingWindowInSeconds": 0,
+    "ScalingConfig": null
+  },
+  "experiment_id": "SMOKE",
+  "git_sha": "8f6dd2200d74a6211d80a3e68bfcb82d52c12e1f-dirty",
+  "ingest_expected": {
+    "chunks": 117,
+    "docs": 50
+  },
+  "ingest_result": {
+    "completeness": 1.0,
+    "dlq_messages": 0,
+    "vectors_expected": 117,
+    "vectors_stored": 117
+  },
+  "ingest_status": "done",
+  "lambdas_deployed": {
+    "embed": {
+      "architectures": [
+        "arm64"
+      ],
+      "code_sha256": "JRWmdcCsTmSDSYMzm9ZEChcrjc3v6RgwsPyWvE+CqxQ=",
+      "memory_mb": 1769,
+      "reserved_concurrency": 1,
+      "runtime": "python3.14",
+      "runtime_version_arn": "arn:aws:lambda:us-west-2::runtime:ab559f26fdef82cfdfbb2942d07b46f84b45b52d0d760d3d623001ab0218052e",
+      "timeout_s": 900,
+      "vpc": true
+    },
+    "enqueue": {
+      "architectures": [
+        "arm64"
+      ],
+      "code_sha256": "JRWmdcCsTmSDSYMzm9ZEChcrjc3v6RgwsPyWvE+CqxQ=",
+      "memory_mb": 256,
+      "reserved_concurrency": null,
+      "runtime": "python3.14",
+      "runtime_version_arn": "arn:aws:lambda:us-west-2::runtime:ab559f26fdef82cfdfbb2942d07b46f84b45b52d0d760d3d623001ab0218052e",
+      "timeout_s": 60,
+      "vpc": true
+    },
+    "query": {
+      "architectures": [
+        "arm64"
+      ],
+      "code_sha256": "JRWmdcCsTmSDSYMzm9ZEChcrjc3v6RgwsPyWvE+CqxQ=",
+      "memory_mb": 1024,
+      "reserved_concurrency": null,
+      "runtime": "python3.14",
+      "runtime_version_arn": "arn:aws:lambda:us-west-2::runtime:ab559f26fdef82cfdfbb2942d07b46f84b45b52d0d760d3d623001ab0218052e",
+      "timeout_s": 60,
+      "vpc": true
+    }
+  },
+  "model_lifecycle": {
+    "amazon.nova-lite-v1:0": {
+      "startOfLifeTime": "2024-12-03 08:00:00+00:00",
+      "status": "ACTIVE"
+    },
+    "amazon.titan-embed-text-v2:0": {
+      "startOfLifeTime": "2024-04-30 08:00:00+00:00",
+      "status": "ACTIVE"
+    }
+  },
+  "notes": "smoke test",
+  "outputs": {
+    "DlqUrl": "https://sqs.us-west-2.amazonaws.com/427810728711/RagA-cd9b855f-DlqD1FAA4AD-GoC2R1AgDL8l.fifo",
+    "EmbedEsm": "eea24277-ebe7-4827-b95b-775b8fe7a8be",
+    "EmbedFn": "RagA-cd9b855f-EmbedF2F274FC-N0AKginHNi7H",
+    "EmbedModel": "arn:aws:bedrock:us-west-2:427810728711:application-inference-profile/yvghv2kdch2s",
+    "EnqueueFn": "RagA-cd9b855f-Enqueue7749AA79-ZHKGhgZehqgn",
+    "GenModel": "arn:aws:bedrock:us-west-2:427810728711:application-inference-profile/ewfynwnb4ki4",
+    "IndexArn": "arn:aws:s3vectors:us-west-2:427810728711:bucket/raga-cd9b855f-vectorbucket-bhzwjiruxu7q/index/run-smoke-scifact-c1-r1-38ce33",
+    "InfraKey": "cd9b855f",
+    "IngestBucket": "raga-cd9b855f-ingestbucket2b3522fa-xn3spv00pv8u",
+    "QueryFn": "RagA-cd9b855f-Query435140A1-BXd3HOaibKJ7",
+    "QueueUrl": "https://sqs.us-west-2.amazonaws.com/427810728711/RagA-cd9b855f-IngestQueue2280FF4E-xieSkBdYRQXK.fifo",
+    "VectorBucket": "arn:aws:s3vectors:us-west-2:427810728711:bucket/raga-cd9b855f-vectorbucket-bhzwjiruxu7q",
+    "VectorBucketName": "raga-cd9b855f-vectorbucket-bhzwjiruxu7q",
+    "VectorIndex": "run-smoke-scifact-c1-r1-38ce33"
+  },
+  "phases": {
+    "collect_end": "2026-10-14T00:41:00.242+00:00",
+    "deploy_end": "2026-10-14T00:33:46.918+00:00",
+    "deploy_start": "2026-10-14T00:28:04.638+00:00",
+    "destroyed": "2026-10-14T00:35:07.599+00:00",
+    "ingest_drained": "2026-10-14T00:34:56.674+00:00",
+    "ingest_upload_end": "2026-10-14T00:34:05.851+00:00",
+    "ingest_upload_start": "2026-10-14T00:34:04.600+00:00",
+    "query_end": "2026-10-14T00:35:04.039+00:00",
+    "query_start": "2026-10-14T00:34:56.918+00:00",
+    "stack_ready": "2026-10-14T00:33:25.481+00:00"
+  },
+  "query_result": {
+    "errors": 0,
+    "requests": 22
+  },
+  "quotas_expected": {
+    "lambda_account_concurrency": null,
+    "nova_lite_rpm": null,
+    "nova_lite_tpm": null,
+    "titan_rpm": 6000,
+    "titan_tpm": 3072000
+  },
+  "quotas_live": {
+    "Lambda concurrent executions": 1000.0,
+    "On-demand model inference requests per minute for Amazon Titan Text Embeddings V2": 6000.0,
+    "On-demand model inference tokens per minute for Amazon Titan Text Embeddings V2": 3072000.0
+  },
+  "region": "us-west-2",
+  "repetition": 1,
+  "retrieval_quality": {
+    "corpus_subset": true,
+    "mrr@10": 1.0,
+    "ndcg@10": 1.0,
+    "queries": 2,
+    "recall@1": 1.0,
+    "recall@10": 1.0,
+    "recall@100": 1.0
+  },
+  "run_id": "SMOKE-scifact-c1-r1-38ce33",
+  "stack_name": "RagA-cd9b855f",
+  "stack_shared": true,
+  "tools": {
+    "harness_platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.12"
+  },
+  "variant_id": "A-s3v-titan-nova"
+}

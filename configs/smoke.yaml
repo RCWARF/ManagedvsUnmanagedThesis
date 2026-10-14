@@ -6,7 +6,7 @@ dataset:
   queries_uri: s3://${DATASETS_BUCKET}/beir/scifact/queries.jsonl
   qrels_uri: s3://${DATASETS_BUCKET}/beir/scifact/qrels/test.tsv
   doc_limit: 50
-  sha256: "TO_PIN"
+  sha256: "dec31c8182f3d744c7d2c09423756fd1d17cbef75808db13ba01cc0aab4d1ac6"
 query:
   concurrency: 2
   requests: 20
