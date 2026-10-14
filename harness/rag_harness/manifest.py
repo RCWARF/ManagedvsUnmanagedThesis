@@ -58,7 +58,9 @@ def snapshot_quotas() -> dict:
         for page in sq.get_paginator("list_service_quotas").paginate(ServiceCode="bedrock"):
             for q in page["Quotas"]:
                 name = q["QuotaName"].lower()
-                if any(w in name for w in wanted) and "on-demand" in name:
+                # Names differ per model family, so keep every on-demand quota for these models.
+                if ("on-demand" in name or "on demand" in name) and (
+                        any(w in name for w in wanted) or ("nova" in name and "lite" in name)):
                     out[q["QuotaName"]] = q["Value"]
         lam = sq.get_service_quota(ServiceCode="lambda", QuotaCode="L-B99A9384")["Quota"]
         out["Lambda concurrent executions"] = lam["Value"]

@@ -11,6 +11,7 @@ from saaf.Inspector import Inspector
 
 def lambda_handler(event, context):
     inspector = Inspector()
+    inspector.inspectContainer()  # newcontainer flag: cold starts per stage
     records = event.get("Records", [])
     inspector.addAttribute("num_s3_records", len(records))
 

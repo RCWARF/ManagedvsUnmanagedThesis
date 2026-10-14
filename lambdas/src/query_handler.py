@@ -18,6 +18,7 @@ STORE = get_store(SETTINGS.vector_store)
 
 def lambda_handler(event, context):
     inspector = Inspector()
+    inspector.inspectContainer()  # newcontainer flag: cold starts per stage
     t_inv = time.perf_counter()
     question = (event.get("question") or "").strip()
     top_k = int(event.get("top_k") or SETTINGS.gen_top_k)
