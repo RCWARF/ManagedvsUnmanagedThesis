@@ -36,3 +36,9 @@ class RagNetworkStack(Stack):
                                             security_groups=[endpoint_sg])
 
         CfnOutput(self, "VpcId", value=self.vpc.vpc_id)
+        # Keep the exports RagA-* stacks import even when no RagA stack is in the CDK app
+        # (`rag network up` synthesizes RagNetwork alone). Without this, CDK would try to drop
+        # exports that a live or deleting RagA stack still uses, and the update rolls back.
+        self.export_value(self.lambda_sg.security_group_id)
+        for subnet in self.vpc.isolated_subnets:
+            self.export_value(subnet.subnet_id)
