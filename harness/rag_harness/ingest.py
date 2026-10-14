@@ -85,7 +85,8 @@ def run(run_id: str) -> dict:
         time.sleep(5)
     manifest.update(run_id, phases={"ingest_drained": manifest.now()})
 
-    result = {"dlq_messages": _queue_depth(sqs, out["DlqUrl"])}
+    # The DLQ belongs to the shared stack, so count only what this run added.
+    result = {"dlq_messages": _queue_depth(sqs, out["DlqUrl"]) - m.get("dlq_depth_before", 0)}
     if cfg.ingest.verify_completeness:
         stored = count_vectors(index_arn(out))
         result |= {"vectors_stored": stored, "vectors_expected": n_expected,

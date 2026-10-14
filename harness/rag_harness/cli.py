@@ -2,14 +2,18 @@
 
   rag prep-beir scifact                 download, checksum, upload to the datasets bucket
   rag network up|down                   VPC + endpoints for a run session
-  rag deploy CONFIG [--set k=v ...]     deploy one run's stack, start its manifest
+  rag deploy CONFIG [--set k=v ...]     deploy/reuse the stack, fresh index, apply run settings
   rag ingest RUN_ID                     burst-upload docs, wait for drain, verify completeness
   rag query RUN_ID                      closed-loop query load with BEIR test queries
   rag quality RUN_ID                    nDCG@10 / Recall@k / MRR@10 on the run's index
   rag collect RUN_ID                    raw SAAF + REPORT + CloudWatch metrics -> results/raw
   rag cost RUN_ID                       cost estimate from collected records
-  rag destroy RUN_ID                    delete the run's stack (after collect)
-  rag run CONFIG|SWEEP [--set k=v ...]  all of the above for each run, in order
+  rag destroy RUN_ID                    delete the run's vector index (after collect)
+  rag run CONFIG|SWEEP [--set k=v ...]  all of the above for each run, then start the teardown
+                                        (--keep leaves the stack up for the next run)
+  rag teardown [STACK]                  start deleting RagA-* stacks; returns without waiting
+  rag stacks                            Rag* stacks and their status, incl. deletes in the last 24 h
+  rag notify EMAIL                      email me when a Rag* stack delete finishes or fails
 """
 import argparse
 import json
@@ -55,6 +59,7 @@ def cmd_prep_beir(a):
 
 
 def _one_run(cfg, config_path, overrides, skip_query=False):
+    """One run on the shared stack. The stack is deployed once per CLI session and kept."""
     os.environ.setdefault("DATASETS_BUCKET", _datasets_bucket())
     run_id = deploy.deploy(cfg, config_path, overrides)
     try:
@@ -72,15 +77,31 @@ def _one_run(cfg, config_path, overrides, skip_query=False):
 def cmd_run(a):
     os.environ.setdefault("DATASETS_BUCKET", _datasets_bucket())
     doc = yaml.safe_load(open(a.config))
-    if "base" in doc:  # sweep file
-        from pathlib import Path
-        base = str(Path(a.config).parent / doc["base"])
-        for cfg in load_sweep(a.config):
-            ov = {k: v for k, v in _flatten_diff(cfg, base).items()}
-            _one_run(cfg, base, ov, a.skip_query)
-    else:
-        ov = _overrides(a.set)
-        _one_run(load_config(a.config, ov), a.config, ov, a.skip_query)
+    stacks = []
+    try:
+        if "base" in doc:  # sweep file
+            from pathlib import Path
+            base = str(Path(a.config).parent / doc["base"])
+            for cfg in load_sweep(a.config):
+                stacks.append(cfg.infra_stack_name())
+                _one_run(cfg, base, _flatten_diff(cfg, base), a.skip_query)
+        else:
+            ov = _overrides(a.set)
+            cfg = load_config(a.config, ov)
+            stacks.append(cfg.infra_stack_name())
+            _one_run(cfg, a.config, ov, a.skip_query)
+    finally:
+        if not a.keep:
+            for stack in dict.fromkeys(stacks):
+                deploy.teardown(stack)
+
+
+def cmd_stacks(a):
+    rows = deploy.stacks_status()
+    if not rows:
+        print("no Rag* stacks")
+    for r in rows:
+        print(f"{r['changed_utc']}  {r['status']:<20} {r['stack']}  {r['reason']}".rstrip())
 
 
 def _flatten_diff(cfg, base_path) -> dict:
@@ -115,7 +136,13 @@ def main(argv=None):
     s = sub.add_parser("destroy"); s.add_argument("run_id"); s.add_argument("--force", action="store_true")
     s.set_defaults(f=lambda a: deploy.destroy(a.run_id, a.force))
     s = sub.add_parser("run"); s.add_argument("config"); s.add_argument("--set", nargs="*")
-    s.add_argument("--skip-query", action="store_true"); s.set_defaults(f=cmd_run)
+    s.add_argument("--skip-query", action="store_true")
+    s.add_argument("--keep", action="store_true", help="leave the stack up for the next rag run")
+    s.set_defaults(f=cmd_run)
+    s = sub.add_parser("teardown"); s.add_argument("stack", nargs="?")
+    s.set_defaults(f=lambda a: deploy.teardown(a.stack))
+    s = sub.add_parser("stacks"); s.set_defaults(f=cmd_stacks)
+    s = sub.add_parser("notify"); s.add_argument("email"); s.set_defaults(f=lambda a: deploy.notify(a.email))
     s = sub.add_parser("show"); s.add_argument("run_id")
     s.set_defaults(f=lambda a: print(json.dumps(manifest.load(a.run_id), indent=2)))
     a = p.parse_args(argv)

@@ -2,7 +2,9 @@
 
 Experiment framework for *Building Serverless RAG Pipelines: An Investigation of Performance and Cost Implications* (MS thesis, UW Tacoma; advisor Wes Lloyd).
 
-Every run is one YAML config → one CloudFormation stack → one manifest → raw results. Nothing is configured by hand in the console.
+Every run is one YAML config → one manifest → raw results. Nothing is configured by hand in the console.
+
+Runs that share Lambda specs, network and model ids share one `RagA-<infra key>` stack, deployed once (Lambdas attached to a VPC take minutes to create and often 10-40 min to delete). Each run gets a fresh S3 Vectors index, and the harness applies its swept settings (Lambda environment, reserved concurrency, ESM batch size and scaling) from the RunConfig and records them in the manifest.
 
 ## Layout
 
@@ -10,7 +12,7 @@ Every run is one YAML config → one CloudFormation stack → one manifest → r
 |---|---|
 | `configs/rag_config/schema.py` | pydantic `RunConfig` (single source of truth) and sweep expansion |
 | `configs/e1/` | Variant A configs and sweeps (ingest concurrency, threads, query load) |
-| `infra/` | AWS CDK (Python): `RagCommon` (long-lived buckets), `RagNetwork` (per-session VPC + endpoints), `RagA-<run>` (one per run) |
+| `infra/` | AWS CDK (Python): `RagCommon` (long-lived buckets), `RagNetwork` (per-session VPC + endpoints), `RagA-<infra key>` (shared by the runs of a sweep), delete notifications |
 | `lambdas/src/` | One code asset for all three functions: `enqueue_handler`, `embed_handler`, `query_handler`, shared `rag/` package, SAAF `Inspector` |
 | `harness/rag_harness/` | `rag` CLI: deploy → ingest → query → quality → collect → cost → destroy |
 | `eval/` | IR metrics (nDCG@10, Recall@k, MRR@10) |
@@ -33,7 +35,7 @@ All Lambdas run in the `RagNetwork` VPC (no NAT; endpoints for Bedrock runtime, 
 - Token counts (Titan input, Nova input/output) and per-stage wall times are recorded, so cost per doc/query is computed from data.
 - Query failures raise (the load generator sees an error, not a 200).
 - Non-smoke runs refuse to deploy from a dirty git tree.
-- Each run gets a fresh vector index. After ingest, the stored vector count is checked against the expected chunk count.
+- Each run gets a fresh vector index and fresh Lambda execution environments (its settings update forces them). After ingest, the stored vector count is checked against the expected chunk count.
 
 ## Usage
 
@@ -47,8 +49,10 @@ cd infra && cdk bootstrap aws://<account>/us-west-2 && cdk deploy RagCommon && c
 rag prep-beir scifact           # prints the sha256 to pin in configs/e1/a_scifact.yaml
 rag run configs/smoke.yaml      # 50 docs, 20 queries, end to end
 rag run configs/e1/sweep_ingest_scifact.yaml --skip-query
-rag network down                # when the session is over
+rag network down                # when the session is over (after the stack delete finished)
 ```
+
+`rag run` starts deleting the stack when it finishes and returns right away (`--keep` leaves it up for another `rag run`). `rag stacks` shows each Rag* stack and its status. To get an email when a delete finishes or fails, run `rag notify you@example.com` once and click the confirmation link AWS sends.
 
 Run steps individually with `rag deploy|ingest|query|quality|collect|cost|destroy`, and inspect a run with `rag show <run_id>`.
 

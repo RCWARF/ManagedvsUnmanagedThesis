@@ -177,6 +177,43 @@ class RunConfig(_Strict):
             f"-c{self.ingest.concurrency}-r{self.repetition}-{self.config_hash()[:6]}"
         )
 
+    # ---- infrastructure vs per-run settings ---------------------------------
+    # Only these fields need a CloudFormation deploy. Everything else (concurrency, threads,
+    # dimensions, chunking, prompt settings, query load) is applied per run by the harness,
+    # so a sweep deploys its Lambdas once and each run only gets a fresh index and settings.
+    def infra_spec(self) -> dict:
+        d = self.model_dump(mode="json")
+        return {
+            "variant_id": d["variant_id"], "region": d["region"], "lambdas": d["lambdas"],
+            "network": d["network"], "query_entrypoint": d["query"]["entrypoint"],
+            "embedding": {k: d["embedding"][k] for k in ("model_id", "use_app_profile")},
+            "generation": {k: d["generation"][k] for k in ("model_id", "use_app_profile")},
+        }
+
+    def infra_hash(self) -> str:
+        blob = json.dumps(self.infra_spec(), sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(blob.encode()).hexdigest()[:8]
+
+    def infra_stack_name(self) -> str:
+        return f"RagA-{self.infra_hash()}"
+
+    def index_name(self) -> str:
+        """S3 Vectors index for this run: lowercase letters, digits and hyphens, 3-63 chars."""
+        return f"run-{self.run_slug().lower()}"[:63]
+
+    def run_env(self) -> dict[str, str]:
+        """Lambda environment that varies per run (merged over the stack's static environment)."""
+        e, c, g = self.embedding, self.chunking, self.generation
+        return {
+            "RUN_ID": self.run_slug(), "CONFIG_HASH": self.config_hash(), "DATASET": self.dataset.name,
+            "EMBED_DIMS": str(e.dimensions), "EMBED_NORMALIZE": str(e.normalize).lower(),
+            "EMBED_WORKERS": str(e.workers_per_invocation), "EMBED_MAX_RETRIES": str(e.max_retries),
+            "CHUNK_SIZE": str(c.size), "CHUNK_OVERLAP": str(c.overlap),
+            "PUT_BATCH_SIZE": str(self.vector_store.put_batch_size),
+            "GEN_TEMPERATURE": str(g.temperature), "GEN_MAX_TOKENS": str(g.max_tokens),
+            "GEN_TOP_K": str(g.top_k), "GEN_STREAMING": str(g.streaming).lower(),
+        }
+
     def peak_embed_inflight(self) -> int:
         return self.ingest.concurrency * self.embedding.workers_per_invocation
 

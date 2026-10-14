@@ -62,7 +62,9 @@ def run(run_id: str) -> dict:
     m = manifest.load(run_id)
     out_dir = RAW / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
-    start = datetime.fromisoformat(m["phases"]["deploy_start"])
+    # Log groups are shared by the runs on one stack: SAAF records are matched on run_id, and
+    # REPORT lines and metrics are limited to the window after this run's settings were applied.
+    start = datetime.fromisoformat(m["phases"].get("deploy_end") or m["phases"]["deploy_start"])
     start_ms = int(start.timestamp() * 1000)
     end = datetime.now(timezone.utc) + timedelta(minutes=1)
     counts = {}
@@ -74,6 +76,8 @@ def run(run_id: str) -> dict:
             try:
                 rec = json.loads(ev["message"])
             except ValueError:
+                continue
+            if rec.get("run_id") != run_id:
                 continue
             rec["log_ts_ms"] = ev["timestamp"]
             saaf.append(rec)

@@ -3,12 +3,11 @@
 
   cdk deploy RagCommon
   cdk deploy RagNetwork
-  cdk deploy -c config=../configs/smoke.yaml -c overrides='{"ingest.concurrency": 4}' RagA-*
+  cdk deploy -c config=../configs/smoke.yaml RagA-*
 
 The harness (`rag deploy`) wraps these calls and records the outputs in the manifest.
 """
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -22,16 +21,6 @@ from stacks.common import RagCommonStack  # noqa: E402
 from stacks.network import RagNetworkStack  # noqa: E402
 from stacks.variant_a import VariantAStack  # noqa: E402
 
-
-def git_sha() -> str:
-    try:
-        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-        dirty = subprocess.call(["git", "diff", "--quiet", "HEAD"], cwd=ROOT) != 0
-        return sha + ("-dirty" if dirty else "")
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return "unknown"
-
-
 app = cdk.App()
 env = cdk.Environment(account=app.node.try_get_context("account"), region="us-west-2")
 
@@ -42,9 +31,10 @@ config_path = app.node.try_get_context("config")
 if config_path:
     overrides = json.loads(app.node.try_get_context("overrides") or "{}")
     cfg = load_config(config_path, overrides)
+    # One stack per infrastructure spec; runs that differ only in per-run settings share it.
     VariantAStack(
-        app, f"RagA-{cfg.run_slug()}",
-        cfg=cfg, git_sha=app.node.try_get_context("git_sha") or git_sha(),
+        app, cfg.infra_stack_name(),
+        cfg=cfg,
         vpc=network.vpc if cfg.network.in_vpc else None,
         lambda_sg=network.lambda_sg if cfg.network.in_vpc else None,
         env=env,

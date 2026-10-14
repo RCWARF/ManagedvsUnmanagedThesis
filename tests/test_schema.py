@@ -54,3 +54,24 @@ def test_sweep_expands_grid_times_reps():
     assert len({r.run_slug() for r in runs}) == 18
     threads = load_sweep(CONFIGS / "e1" / "sweep_threads_scifact.yaml")
     assert {r.embedding.workers_per_invocation for r in threads} == {1, 2, 4, 8}
+
+
+def test_sweeps_share_one_stack_but_get_their_own_index():
+    import re
+    for sweep in ("sweep_ingest_scifact.yaml", "sweep_threads_scifact.yaml", "sweep_query_scifact.yaml"):
+        runs = load_sweep(CONFIGS / "e1" / sweep)
+        assert len({r.infra_stack_name() for r in runs}) == 1, sweep
+        names = {r.index_name() for r in runs}
+        assert len(names) == len(runs)
+        assert all(re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", n) for n in names)
+    base = load_config(CONFIGS / "smoke.yaml")
+    assert base.infra_hash() != load_config(CONFIGS / "smoke.yaml", {"lambdas.embed": {"memory_mb": 3008, "timeout_s": 900}}).infra_hash()
+    assert base.infra_hash() == load_config(CONFIGS / "smoke.yaml", {"embedding.dimensions": 256}).infra_hash()
+
+
+def test_run_env_carries_every_per_run_setting():
+    cfg = load_config(CONFIGS / "smoke.yaml", {"embedding.workers_per_invocation": 4, "embedding.dimensions": 512})
+    env = cfg.run_env()
+    assert env["RUN_ID"] == cfg.run_slug() and env["CONFIG_HASH"] == cfg.config_hash()
+    assert env["EMBED_WORKERS"] == "4" and env["EMBED_DIMS"] == "512"
+    assert all(isinstance(v, str) for v in env.values())
